@@ -26,13 +26,13 @@ class PNode
 		this->key.store(key, std::memory_order_relaxed);
 		this->value.store(value, std::memory_order_relaxed);
 		this->validEnd.store(validity, std::memory_order_release);
-		BARRIER(this);
+		FLUSH(this, sizeof(PNode));
 	}
 
 	void destroy(bool validity)
 	{
 		this->deleted.store(validity, std::memory_order_release);
-		BARRIER(this);
+		FLUSH(this, sizeof(PNode));
 	}
 
 	bool isValid()

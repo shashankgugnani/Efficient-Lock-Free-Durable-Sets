@@ -54,7 +54,7 @@ private:
     {
         if (LIKELY(n->deleteFlag.load()))
             return;
-        FLUSH(n);
+        FLUSH(n, sizeof(Node));
         n->deleteFlag.store(true, std::memory_order_release);
     }
 
@@ -62,7 +62,7 @@ private:
     {
         if (LIKELY(n->insertFlag.load()))
             return;
-        FLUSH(n);
+        FLUSH(n, sizeof(Node));
         n->insertFlag.store(true, std::memory_order_release);
     }
 

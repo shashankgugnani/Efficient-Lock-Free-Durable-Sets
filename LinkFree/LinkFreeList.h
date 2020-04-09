@@ -55,16 +55,16 @@ private:
     {
         if (LIKELY(n->deleteFlag.load()))
             return;
-        FLUSH(n);
         n->deleteFlag.store(true, std::memory_order_release);
+        FLUSH(n, sizeof(Node));
     }
 
     void FLUSH_INSERT(Node *n)
     {
         if (LIKELY(n->insertFlag.load()))
             return;
-        FLUSH(n);
         n->insertFlag.store(true, std::memory_order_release);
+        FLUSH(n, sizeof(Node));
     }
 
     //trim curr

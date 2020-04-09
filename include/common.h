@@ -5,6 +5,7 @@
 #include <stddef.h> //for null
 #include <climits>  //for max int
 #include <fstream>
+#include <libpmem.h>
 
 #define compiler_fence std::atomic_thread_fence(std::memory_order_release)
 #define MFENCE __sync_synchronize
@@ -15,20 +16,20 @@
 
 typedef unsigned char uchar;
 
-static inline void FLUSH(void *p)
-{
-    asm volatile("clflush (%0)" ::"r"(p));
-}
-
 static inline void SFENCE()
 {
     asm volatile("sfence" ::
                      : "memory");
 }
 
+static inline void FLUSH(void *p, size_t size)
+{
+    pmem_persist(p, size);
+}
+
 static inline void BARRIER(void *p)
 {
-    FLUSH(p);
+    SFENCE();
 }
 
 #endif

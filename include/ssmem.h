@@ -51,6 +51,8 @@
 #define SSMEM_MEM_SIZE_MAX     (4 * 1024 * 1024 * 1024LL) /* absolute max chunk size 
 							   (e.g., if doubling is 1) */
 
+#define SSMEM_PMEM_DAXFS_PATH  "/mnt/pmem1"
+
 /* increase the thread-local timestamp of activity on each ssmem_alloc() and/or ssmem_free() 
    call. If enabled (>0), after some memory is alloced and/or freed, the thread should not 
    access ANY ssmem-protected memory that was read (the reference were taken) before the
@@ -100,6 +102,8 @@ typedef struct ALIGNED(CACHE_LINE_SIZE) ssmem_allocator
 						  and can be used as free sets */
       size_t released_num;	/* number of released memory objects */
       struct ssmem_released* released_mem_list; /* list of release memory objects */
+
+      bool is_persistent;       /* is allocator for PMEM? */
     };
     uint8_t padding[2 * CACHE_LINE_SIZE];
   };
@@ -163,9 +167,9 @@ typedef struct ssmem_list
 /* **************************************************************************************** */
 
 /* initialize an allocator with the default number of objects */
-void ssmem_alloc_init(ssmem_allocator_t* a, size_t size, int id);
+void ssmem_alloc_init(ssmem_allocator_t* a, size_t size, bool is_persistent, int id);
 /* initialize an allocator and give the number of objects in free_sets */
-void ssmem_alloc_init_fs_size(ssmem_allocator_t* a, size_t size, size_t free_set_size, int id);
+void ssmem_alloc_init_fs_size(ssmem_allocator_t* a, size_t size, size_t free_set_size, bool is_persistent, int id);
 /* explicitely subscribe to the list of threads in order to used timestamps for GC */
 void ssmem_gc_thread_init(ssmem_allocator_t* a, int id);
 /* terminate the system (all allocators) and free all memory */

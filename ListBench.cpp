@@ -8,7 +8,7 @@ __thread ssmem_allocator_t *volatileAlloc;
 template<>
 void specificInit<SOFTList<intptr_t>>(int id){
     volatileAlloc = (ssmem_allocator_t *)malloc(sizeof(ssmem_allocator_t));
-    ssmem_alloc_init(volatileAlloc, SSMEM_DEFAULT_MEM_SIZE, id);
+    ssmem_alloc_init(volatileAlloc, SSMEM_DEFAULT_MEM_SIZE, false, id);
 }
 
 template<class SET>

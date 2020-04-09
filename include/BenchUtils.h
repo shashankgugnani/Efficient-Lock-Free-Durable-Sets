@@ -129,7 +129,7 @@ void benchOpsThread(bench_ops_thread_arg_t *arg)
     specificInit<SET>(id);
 
     alloc = (ssmem_allocator_t *)malloc(sizeof(ssmem_allocator_t));
-    ssmem_alloc_init(alloc, SSMEM_DEFAULT_MEM_SIZE, id);
+    ssmem_alloc_init(alloc, SSMEM_DEFAULT_MEM_SIZE, true, id);
 
     barrier_cross(&init_barrier);
 
@@ -189,7 +189,7 @@ static void runBench()
     barrier_init(&init_barrier, NUM_THREADS);
 
     alloc = (ssmem_allocator_t *)malloc(sizeof(ssmem_allocator_t));
-    ssmem_alloc_init(alloc, SSMEM_DEFAULT_MEM_SIZE, 0);
+    ssmem_alloc_init(alloc, SSMEM_DEFAULT_MEM_SIZE, true, 0);
 
     bench_stop = false;
 

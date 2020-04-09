@@ -35,6 +35,7 @@
 #include <malloc.h>
 #include <assert.h>
 #include <string.h>
+#include <libpmem.h>
 #include "common.h"
 
 ssmem_ts_t *ssmem_ts_list = nullptr;
@@ -42,6 +43,22 @@ volatile uint32_t ssmem_ts_list_len = 0;
 __thread volatile ssmem_ts_t *ssmem_ts_local = nullptr;
 __thread size_t ssmem_num_allocators = 0;
 __thread ssmem_list_t *ssmem_allocator_list = nullptr;
+
+/* Allocate a PMEM pool. */
+static void *
+pmempool_alloc(const char *path, size_t size)
+{
+    /* Create pmem file and memory map it. */
+    return pmem_map_file(path, size, PMEM_FILE_CREATE, 0666, NULL, NULL);
+}
+
+/* Free a PMEM pool. */
+static void
+pmempool_free(void *ptr, size_t size)
+{
+    /* Unmap pool. */
+    pmem_unmap(ptr, size);
+}
 
 inline int
 ssmem_get_id()
@@ -88,23 +105,31 @@ ssmem_free_set_t *ssmem_free_set_new(size_t size, ssmem_free_set_t *next);
  * If the thread is not subscribed to the list of timestamps (used for GC),
  * additionally subscribe the thread to the list
  */
-void ssmem_alloc_init_fs_size(ssmem_allocator_t *a, size_t size, size_t free_set_size, int id)
+void ssmem_alloc_init_fs_size(ssmem_allocator_t *a, size_t size, size_t free_set_size, bool is_persistent, int id)
 {
 	ssmem_num_allocators++;
 	ssmem_allocator_list = ssmem_list_node_new((void *)a, ssmem_allocator_list);
 
+	std::string pmem_path = SSMEM_PMEM_DAXFS_PATH;
+	pmem_path += "/p_list_";
+	pmem_path += std::to_string(id);
+        if (is_persistent) {
+		a->mem = (void *)pmempool_alloc(pmem_path.c_str(), size);
+	} else {
 #if SSMEM_TRANSPARENT_HUGE_PAGES
-	int ret = posix_memalign(&a->mem, CACHE_LINE_SIZE, size);
-	assert(ret == 0);
+		int ret = posix_memalign(&a->mem, CACHE_LINE_SIZE, size);
+		assert(ret == 0);
 #else
-	a->mem = (void *)aligned_alloc(CACHE_LINE_SIZE, size);
+		a->mem = (void *)aligned_alloc(CACHE_LINE_SIZE, size);
 #endif
+        }
 	assert(a->mem != nullptr);
 
 	a->mem_curr = 0;
 	a->mem_size = size;
 	a->tot_size = size;
 	a->fs_size = free_set_size;
+	a->is_persistent = is_persistent;
 
 	ssmem_zero_memory(a);
 
@@ -132,9 +157,9 @@ void ssmem_alloc_init_fs_size(ssmem_allocator_t *a, size_t size, size_t free_set
  * If the thread is not subscribed to the list of timestamps (used for GC),
  * additionally subscribe the thread to the list
  */
-void ssmem_alloc_init(ssmem_allocator_t *a, size_t size, int id)
+void ssmem_alloc_init(ssmem_allocator_t *a, size_t size, bool is_persistent, int id)
 {
-	return ssmem_alloc_init_fs_size(a, size, SSMEM_GC_FREE_SET_SIZE, id);
+	return ssmem_alloc_init_fs_size(a, size, SSMEM_GC_FREE_SET_SIZE, is_persistent, id);
 }
 
 /* 
@@ -245,7 +270,11 @@ void ssmem_alloc_term(ssmem_allocator_t *a)
 	do
 	{
 		ssmem_list_t *mnxt = mcur->next;
-		free(mcur->obj);
+		if (a->is_persistent) {
+			pmempool_free(mcur->obj, a->mem_size);
+		} else {
+			free(mcur->obj);
+		}
 		free(mcur);
 		mcur = mnxt;
 	} while (mcur != nullptr);
@@ -422,7 +451,7 @@ ssmem_alloc(ssmem_allocator_t *a, size_t size)
 			}
 #endif
 			/* printf("[ALLOC] out of mem, need to allocate (chunk = %llu MB)\n", */
-			/* 	 a->mem_size / (1LL<<20)); */
+			/*	 a->mem_size / (1LL<<20)); */
 			if (size > a->mem_size)
 			{
 				/* printf("[ALLOC] asking for large mem. chunk\n"); */

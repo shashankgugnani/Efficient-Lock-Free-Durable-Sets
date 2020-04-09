@@ -1,6 +1,7 @@
 CFLAGS = -std=c++11 -fpermissive -O3
 
-LFLAGS = -L./include -pthread -lssmem
+BUCKET_NUM = 1024
+LFLAGS = -L./include -pthread -lssmem -lpmem
 LINKFREE = ./LinkFree
 SOFT = ./SOFT
 IFLAGS = -I./include -I$(LINKFREE) -I$(SOFT) -I. 
