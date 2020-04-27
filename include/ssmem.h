@@ -103,9 +103,11 @@ typedef struct ALIGNED(CACHE_LINE_SIZE) ssmem_allocator
       size_t released_num;	/* number of released memory objects */
       struct ssmem_released* released_mem_list; /* list of release memory objects */
 
+      size_t mem_pool_cnt;      /* number of PMEM pools allocated */
+      int id;                   /* id of thread allocator is associated with */
       bool is_persistent;       /* is allocator for PMEM? */
     };
-    uint8_t padding[2 * CACHE_LINE_SIZE];
+    uint8_t padding[3 * CACHE_LINE_SIZE];
   };
 } ssmem_allocator_t;
 

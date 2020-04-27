@@ -130,6 +130,8 @@ void ssmem_alloc_init_fs_size(ssmem_allocator_t *a, size_t size, size_t free_set
 	a->tot_size = size;
 	a->fs_size = free_set_size;
 	a->is_persistent = is_persistent;
+	a->id = id;
+	a->mem_pool_cnt = 1;
 
 	ssmem_zero_memory(a);
 
@@ -467,17 +469,26 @@ ssmem_alloc(ssmem_allocator_t *a, size_t size)
 				}
 				/* printf("[ALLOC] new mem size chunk is %llu MB\n", a->mem_size / (1024 * 1024LL)); */
 			}
+			std::string pmem_path = SSMEM_PMEM_DAXFS_PATH;
+			pmem_path += "/p_list_";
+			pmem_path += std::to_string(a->id);
+			pmem_path += "_";
+			pmem_path += std::to_string(a->mem_pool_cnt);
+			if (a->is_persistent) {
+				a->mem = (void *)pmempool_alloc(pmem_path.c_str(), size);
+			} else {
 #if SSMEM_TRANSPARENT_HUGE_PAGES
-			int ret = posix_memalign(&a->mem, CACHE_LINE_SIZE, a->mem_size);
-			assert(ret == 0);
+				int ret = posix_memalign(&a->mem, CACHE_LINE_SIZE, a->mem_size);
+				assert(ret == 0);
 #else
-			a->mem = (void *)aligned_alloc(CACHE_LINE_SIZE, a->mem_size);
+				a->mem = (void *)aligned_alloc(CACHE_LINE_SIZE, a->mem_size);
 #endif
+			}
 			assert(a->mem != nullptr);
 
 			a->mem_curr = 0;
-
 			a->tot_size += a->mem_size;
+			a->mem_pool_cnt++;
 
 			ssmem_zero_memory(a);
 
