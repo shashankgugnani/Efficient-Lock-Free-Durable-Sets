@@ -475,7 +475,7 @@ ssmem_alloc(ssmem_allocator_t *a, size_t size)
 			pmem_path += "_";
 			pmem_path += std::to_string(a->mem_pool_cnt);
 			if (a->is_persistent) {
-				a->mem = (void *)pmempool_alloc(pmem_path.c_str(), size);
+				a->mem = (void *)pmempool_alloc(pmem_path.c_str(), a->mem_size);
 			} else {
 #if SSMEM_TRANSPARENT_HUGE_PAGES
 				int ret = posix_memalign(&a->mem, CACHE_LINE_SIZE, a->mem_size);
