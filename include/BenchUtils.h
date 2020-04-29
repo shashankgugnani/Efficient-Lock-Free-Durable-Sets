@@ -19,6 +19,7 @@
 #include "ssmem.h"
 #include "barrier.h"
 #include "common.h"
+#include "timer.h"
 using namespace std;
 
 std::ofstream file;
@@ -115,12 +116,17 @@ struct bench_ops_thread_arg_t
     uintptr_t tid;
     void *set;
     uint64_t ops;
+    uint64_t num_insert;
+    uint64_t num_remove;
+    uint64_t time_search;
+    uint64_t time_insert;
+    uint64_t time_remove;
 };
 
 template <class SET>
 void benchOpsThread(bench_ops_thread_arg_t *arg)
 {
-    int cRatio = RO_RATIO * 10;
+    int cRatio = 1000 * RO_RATIO / 100;
     int iRatio = cRatio + (1000 - cRatio) / 2;
     int id = arg->tid;
     set_cpu(id - 1);
@@ -128,13 +134,15 @@ void benchOpsThread(bench_ops_thread_arg_t *arg)
     uint32_t seed2 = seed1 + 1;
     specificInit<SET>(id);
 
+    TIMER_HP_REGISTER();
+
     alloc = (ssmem_allocator_t *)malloc(sizeof(ssmem_allocator_t));
     ssmem_alloc_init(alloc, SSMEM_DEFAULT_MEM_SIZE, true, id);
 
     barrier_cross(&init_barrier);
 
     uint32_t num_elems_thread = (uint32_t)((KEY_RANGE / 2) / NUM_THREADS);
-    uint32_t missing = (uint32_t)(KEY_RANGE / 2) - (num_elems_thread * NUM_THREADS);
+    uint32_t missing = (uint32_t)(KEY_RANGE / 2) % NUM_THREADS;
     if (id <= missing)
     {
         num_elems_thread++;
@@ -143,7 +151,7 @@ void benchOpsThread(bench_ops_thread_arg_t *arg)
     uint64_t ops = 0;
     SET *set = (SET *)arg->set;
 
-    for (int i = 0; i < (int64_t)num_elems_thread; i++)
+    for (int i = 0; i < (int)num_elems_thread; i++)
     {
         int key = rand_r_32(&seed2) % KEY_RANGE;
         if (!set->insert(key, id, id))
@@ -158,17 +166,23 @@ void benchOpsThread(bench_ops_thread_arg_t *arg)
     {
         int op = rand_r_32(&seed1) % 1000;
         int key = rand_r_32(&seed2) % KEY_RANGE;
+        TIMER_HP_START();
         if (op < cRatio)
         {
             set->contains(key, id);
+            if (CONFIG_TIMER) arg->time_search += TIMER_HP_ELAPSED();
         }
         else if (op < iRatio)
         {
             set->insert(key, id, id);
+            if (CONFIG_TIMER) arg->time_insert += TIMER_HP_ELAPSED();
+            arg->num_insert++;
         }
         else
         {
             set->remove(key, id);
+            if (CONFIG_TIMER) arg->time_remove += TIMER_HP_ELAPSED();
+            arg->num_remove++;
         }
         ops++;
     }
@@ -188,6 +202,11 @@ static void runBench()
     barrier_init(&barrier_global, NUM_THREADS + 1);
     barrier_init(&init_barrier, NUM_THREADS);
 
+    struct timespec timeout;
+    struct timeval start, end;
+    timeout.tv_sec = DURATION;
+    timeout.tv_nsec = 0;
+
     alloc = (ssmem_allocator_t *)malloc(sizeof(ssmem_allocator_t));
     ssmem_alloc_init(alloc, SSMEM_DEFAULT_MEM_SIZE, true, 0);
 
@@ -202,27 +221,56 @@ static void runBench()
         arg.tid = j;
         arg.set = set;
         arg.ops = 0;
+        arg.num_insert = 0;
+        arg.num_remove = 0;
+        arg.time_search = 0;
+        arg.time_insert = 0;
+        arg.time_remove = 0;
         thrs[j - 1] = new thread(benchOpsThread<SET>, &arg);
     }
 
     // broadcast begin signal
     barrier_cross(&barrier_global);
 
-    sleep(DURATION);
+    gettimeofday(&start, NULL);
+    nanosleep(&timeout, NULL);
 
     bench_stop = true;
+    gettimeofday(&end, NULL);
 
     for (uint32_t j = 0; j < NUM_THREADS; j++)
         thrs[j]->join();
 
+    //compute the exact duration of the experiment
+    int duration = (end.tv_sec * 1000 + end.tv_usec / 1000) - (start.tv_sec * 1000 +
+                   start.tv_usec / 1000);
+
+    delete set;
+
     uint64_t totalOps = 0;
+    uint64_t searches = 0;
+    uint64_t inserts = 0;
+    uint64_t removes = 0;
+    uint64_t time_searches = 0;
+    uint64_t time_inserts = 0;
+    uint64_t time_removes = 0;
+
     for (uint32_t j = 0; j < NUM_THREADS; j++)
     {
         totalOps += args[j].ops;
+        inserts += args[j].num_insert;
+        removes += args[j].num_remove;
+        time_searches += args[j].time_search;
+        time_inserts += args[j].time_insert;
+        time_removes += args[j].time_remove;
     }
+    searches = totalOps - (inserts + removes);
 
-    file << totalOps / (DURATION * 1000.) << endl;
-    cout << totalOps / (DURATION * 1000.) << endl;
+    file << totalOps / (duration * 1.0) << endl;
+    cout << "Search Lat (cycles): " << time_searches / (searches * 1.0) << endl;
+    cout << "Insert Lat (cycles): " << time_inserts / (inserts * 1.0) << endl;
+    cout << "Remove Lat (cycles): " << time_removes / (removes * 1.0) << endl;
+    cout << "Throughput (Kops/s): " << totalOps / (duration * 1.0) << endl;
 }
 
 #endif
