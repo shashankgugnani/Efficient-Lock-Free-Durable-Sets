@@ -1,4 +1,15 @@
-CFLAGS = -std=c++11 -fpermissive -O3
+CFLAGS = -std=c++11 -fpermissive -fno-omit-frame-pointer
+ifeq ($(VERSION),DEBUG)
+CFLAGS += -O0 -g -DDEBUG
+else
+CFLAGS += -O3
+endif
+
+ifeq ($(ENABLE_TIMER),y)
+CFLAGS += -DCONFIG_TIMER=1
+else
+CFLAGS += -DCONFIG_TIMER=0
+endif
 
 BUCKET_NUM = 1024
 LFLAGS = -L./include -pthread -lssmem -lpmem

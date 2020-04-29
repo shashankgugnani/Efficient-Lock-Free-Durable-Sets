@@ -1,4 +1,4 @@
-CFLAGS = -Wall -std=c++11
+CFLAGS = -Wall -std=c++11 -fno-omit-frame-pointer
 LDFLAGS = -lm -lrt -pthread -lssmem -ltcmalloc
 IFLAGS = -I../
 
