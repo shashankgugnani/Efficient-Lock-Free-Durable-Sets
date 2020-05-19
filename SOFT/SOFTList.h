@@ -8,6 +8,9 @@
 
 typedef softUtils::state state;
 
+uint64_t n_find = 0;
+uint64_t t_find = 0;
+
 template <class T>
 class SOFTList
 {
@@ -34,6 +37,12 @@ class SOFTList
         head->next.store(new Node<T>(INT_MAX, 0, nullptr, false), std::memory_order_release);
     }
 
+    ~SOFTList()
+    {
+	if (n_find)
+            std::cout << "Find Lat (cycles): " << t_find * 1.0 / n_find << std::endl;
+    }
+
   private:
     bool trim(Node<T> *prev, Node<T> *curr)
     {
@@ -50,6 +59,9 @@ class SOFTList
     // returns clean reference in pred, ref+state of pred in return and the state of curr in the last arg
     Node<T> *find(intptr_t key, Node<T> **predPtr, state *currStatePtr)
     {
+        TIMER_HP_REGISTER();
+        TIMER_HP_START();
+        if (CONFIG_TIMER) __sync_fetch_and_add(&n_find, 1);
         Node<T> *prev = head, *curr = prev->next.load(), *succ, *succRef;
         Node<T> *currRef = softUtils::getRef<Node<T>>(curr);
         state prevState = softUtils::getState(curr), cState;
@@ -74,6 +86,7 @@ class SOFTList
         }
         *predPtr = prev;
         *currStatePtr = cState;
+        if (CONFIG_TIMER) __sync_fetch_and_add(&t_find, TIMER_HP_ELAPSED());
         return curr;
     }
 
