@@ -35,10 +35,10 @@ ncpu_per_sock=$(( $ncpu / $nsock ))
 ALGO=("LinkFreeList" "SOFTList")
 
 # Update %
-UPDATES=("0" "5" "10" "20" "30" "40" "50")
+: ${UPDATES:="0 5 10 20 30 40 50"}
 
 # Range
-RANGES=("256" "1024" "4096")
+: ${RANGES:="256 1024 4096"}
 
 # Duration (s)
 : ${DURATION:=15}
