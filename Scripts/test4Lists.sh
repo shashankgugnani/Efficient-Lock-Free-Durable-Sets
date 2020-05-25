@@ -32,7 +32,7 @@ nsock=$(portable_nsock)
 ncpu_per_sock=$(( $ncpu / $nsock ))
 
 # Algo
-ALGO=("LinkFreeList" "SOFTList")
+: ${ALGO:="LinkFreeList SOFTList"}
 
 # Update %
 : ${UPDATES:="0 5 10 20 30 40 50"}
@@ -55,6 +55,8 @@ ALGO=("LinkFreeList" "SOFTList")
 # Uncomment to disable PMEM flush
 #export PMEM_NO_FLUSH=1
 
+rm -f output.log
+
 for algo in ${ALGO[*]}; do
 	for range in ${RANGES[*]}; do
 		echo -e "Algo: $algo, Range: $range, Threads: $THREADS"
@@ -62,16 +64,15 @@ for algo in ${ALGO[*]}; do
 
 		for ur in ${UPDATES[*]}; do
 			# Cleanup
-			for i in $(seq 1 $THREADS); do
-				rm -f $PMEM_DIR/p_llist_$i
-			done
+			rm -f $PMEM_DIR/p_llist*
 			sleep 2
 
 			# Run app
-			numactl -N 0 ./list -a $algo -p $THREADS -d $DURATION -R $(( 100 - $ur )) -M $range -t 1 > output.log 2>&1
+			echo -e "Algo: $algo, Range: $range, Threads: $THREADS, Updates: $ur" >> output.log
+			numactl -N 0 ./list -a $algo -p $THREADS -d $DURATION -R $(( 100 - $ur )) -M $range -t 1 >> output.log 2>&1
 
 			# Get throughput
-			thr=$(tail -n 1 output.log)
+			thr=$(tail -n 1 output.log | awk '{ print $3 }')
 			thr=$(echo "$thr * 1000" | bc)
 			echo -e "$ur\t\t$thr"
 			sleep 2
